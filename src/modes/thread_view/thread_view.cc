@@ -224,10 +224,14 @@ namespace Astroid {
           WebKitNavigationAction * nav_action = webkit_navigation_policy_decision_get_navigation_action (navigation_decision);
 
 
+          // TODO: [W2]: should this request be used or ignored? Currently ignoring if we
+          //             handle ourselves.
+
           if (webkit_navigation_action_get_navigation_type (nav_action)
               == WEBKIT_NAVIGATION_TYPE_LINK_CLICKED) {
 
             webkit_policy_decision_ignore (decision);
+
             const gchar * uri_c = webkit_uri_request_get_uri (
                 webkit_navigation_action_get_request (nav_action));
 
@@ -326,6 +330,7 @@ namespace Astroid {
       default:
         /* webkit_policy_decision_ignore (decision); */
         /* return true; // stop event */
+        // TODO: [W2] when do we ignore and when do we use?
         return false;
     }
 

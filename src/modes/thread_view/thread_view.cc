@@ -8,6 +8,7 @@
 # include <gtkmm.h>
 # include <webkit2/webkit2.h>
 # include <gio/gio.h>
+# include <boost/property_tree/ptree.hpp>
 
 # include "thread_view.hh"
 # include "web_inspector.hh"
@@ -41,6 +42,7 @@
 # include "theme.hh"
 
 using namespace std;
+using boost::property_tree::ptree;
 
 namespace Astroid {
 
@@ -632,7 +634,6 @@ namespace Astroid {
       return;
     }
 
-    /* test JS */
     webkit_web_view_run_javascript (webview, theme.thread_view_js.c_str (), NULL, NULL, NULL);
 
     /* set message state vector */
@@ -650,6 +651,8 @@ namespace Astroid {
                       sigc::mem_fun (this, &ThreadView::on_message_changed));
                 }
               });
+
+    webkit_web_view_run_javascript (webview, "render();", NULL, NULL, NULL);
 
     update_all_indent_states ();
 
@@ -723,8 +726,28 @@ namespace Astroid {
 
   // TODO: [JS] [REIMPLEMENT]
   void ThreadView::add_message (refptr<Message> m) {
-# if 0
     LOG (debug) << "tv: adding message: " << m->mid;
+
+    ptree mjs;
+    mjs.put ("id", m->mid);
+
+    Address sender (m->sender);
+    mjs.put ("from.address", sender.email ());
+    mjs.put ("from.name", sender.fail_safe_name ());
+
+
+    std::stringstream js;
+    js << "add_message(";
+    write_json (js, mjs);
+    js << ");";
+
+    LOG (debug) << "tv: js:" << js.str ();
+
+    webkit_web_view_run_javascript (webview, js.str ().c_str (), NULL, NULL, NULL);
+
+
+
+# if 0
 
     ustring div_id = "message_" + m->mid;
 

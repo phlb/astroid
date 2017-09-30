@@ -1,0 +1,10 @@
+Import ('debug')
+Import ('env')
+
+env.Tool ('yarn')
+
+astroid_js = env.Yarn ('dist/astroid.js', Glob ('src/*.js') )
+js = env.Alias ('js', astroid_js)
+
+Export ('js')
+

@@ -467,7 +467,10 @@ testEnv.Tool ('unittest',
 
 Export ('testEnv')
 # grab stuff from sub-directories.
-env.SConscript(dirs = ['test'])
+env.SConscript(dirs = ['test', 'ui/thread-view/js'])
+
+Import ('js')
+env.Depends (astroid, js)
 
 ## Install target
 idir_prefix     = prefix
@@ -480,8 +483,8 @@ idir_icon       = os.path.join (prefix, 'share/icons/hicolor')
 inst_bin = env.Install (idir_bin, astroid)
 inst_shr = env.Install (idir_ui,  Glob ('ui/*.glade') +
                                   Glob ('ui/*.png') +
-                                  Glob ('ui/*.html') +
-                                  Glob ('ui/*.js'))
+                                  Glob ('ui/thread-view/*.html') +
+                                  Glob ('ui/thread-view/js/dist/astroid.js'))
 
 # icons are installed in two locations
 inst_shr += env.Install (os.path.join(idir_ui, 'icons'),  Glob ('ui/icons/*'))
@@ -494,9 +497,9 @@ if not disable_plugins:
   inst_bin += env.Install (os.path.join (prefix, 'lib/girepository-1.0'), typelib)
 
 if disable_libsass:
-  inst_shr += env.Install (idir_ui, Glob ('ui/*.css'))
+  inst_shr += env.Install (idir_ui, Glob ('ui/thread-view/*.css'))
 else:
-  inst_shr += env.Install (idir_ui, Glob ('ui/*.scss'))
+  inst_shr += env.Install (idir_ui, Glob ('ui/thread-view/*.scss'))
 
 inst_app = env.Install (idir_app, 'ui/astroid.desktop')
 

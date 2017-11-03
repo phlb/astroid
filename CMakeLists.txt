@@ -128,6 +128,7 @@ configure_file (
     src/build_config.hh.in
     src/build_config.hh
     )
+include_directories (${CMAKE_BINARY_DIR}/src)
 
 include (CheckIncludeFile)
 set ( CMAKE_REQUIRED_INCLUDES ${SASS_INCLUDE_DIRS} )

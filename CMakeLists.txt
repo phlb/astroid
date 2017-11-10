@@ -141,15 +141,24 @@ add_compile_options (
 
 add_compile_options (
   -Wall
-  -g
   -Wextra
   )
 
 add_definitions (
   -DDISABLE_PLUGINS
   -DBOOST_LOG_DYN_LINK
-  -DDEBUG
   )
+
+if (CMAKE_BUILD_TYPE STREQUAL "Debug")
+  add_compile_options (
+    -g
+    -Wextra
+    )
+
+  add_definitions (
+    -DDEBUG
+    )
+endif()
 
 ## Check if notmuch is compiled against the same GMime library
 include(CheckCXXSourceRuns)

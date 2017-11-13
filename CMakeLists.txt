@@ -20,6 +20,11 @@ else ()
 endif ()
 
 ##
+# where supporting modules live
+#
+set (CMAKE_MODULE_PATH "${CMAKE_SOURCE_DIR}/cmake")
+
+##
 # project name
 #
 project (astroid)
@@ -40,10 +45,19 @@ else ()
 endif ()
 
 ##
+# plugin API namespace and version
+#
+if(NOT DISABLE_PLUGINS)
+  set (PLUGIN_NAMESPACE    "Astroid")
+  set (PLUGIN_API_VERSION  "0.1")
+endif()
+
+##
 # cmake -D...=ON|OFF command line feature switches and their default values
 #
 option (DISABLE_TERMINAL         "Disable embedded terminal (default = enabled)"  OFF)
 option (DISABLE_EMBEDDED_EDITOR  "Disable embedded editor (default = enabled)"    OFF)
+option (DISABLE_PLUGINS          "Disable plugins (default = enabled)"            OFF)
 option (ENABLE_PROFILING         "Enable profiling (default = disabled)"          OFF)
 
 ##
@@ -57,7 +71,20 @@ message (STATUS "Building ${PROJECT_NAME} ${PROJECT_VERSION}")
 find_package ( PkgConfig REQUIRED )
 pkg_check_modules (GTKMM3     REQUIRED  gtkmm-3.0>=3.10)
 pkg_check_modules (GLIBMM2    REQUIRED  glibmm-2.4)
-pkg_check_modules (GMIME3     REQUIRED  gmime-3.0>=3.0.0)
+
+pkg_check_modules (GMIME                gmime-3.0>=3.0.0)
+if (NOT GMIME_FOUND)
+  # fall back to gmime 2
+  pkg_check_modules (GMIME              gmime-2.6>=2.6.0)
+endif()
+
+if (NOT GMIME_FOUND)
+  message (
+    FATAL_ERROR
+    "GMime 3 or GMime 2.6 required"
+    )
+endif()
+
 pkg_check_modules (WEBKITGTK3 REQUIRED  webkitgtk-3.0)
 pkg_check_modules (SASS       REQUIRED  libsass)
 
@@ -80,7 +107,7 @@ if(APPLE)
   # its own; hence we have to locate it manually
   set ( Gettext_LDFLAGS "-L/usr/local/opt/gettext/lib" )
 endif(APPLE)
-  
+
 find_library ( NOTMUCH_LIB notmuch )
 if(NOT NOTMUCH_LIB)
   message (FATAL_ERROR "notmuch library not found")
@@ -111,7 +138,7 @@ set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++14")
 include_directories (
   ${GTKMM3_INCLUDE_DIRS}
   ${GLIBMM2_INCLUDE_DIRS}
-  ${GMIME3_INCLUDE_DIRS}
+  ${GMIME_INCLUDE_DIRS}
   ${WEBKITGTK3_INCLUDE_DIRS}
   ${VTE2_INCLUDE_DIRS}
   ${SASS_INCLUDE_DIRS}
@@ -121,7 +148,7 @@ include_directories (
 add_compile_options (
   ${GTKMM3_CFLAGS}
   ${GLIBMM2_CFLAGS}
-  ${GMIME3_CFLAGS}
+  ${GMIME_CFLAGS}
   ${WEBKITGTK3_CFLAGS}
   ${VTE2_CFLAGS}
   ${SASS_CFLAGS}
@@ -129,15 +156,64 @@ add_compile_options (
 
 add_compile_options (
   -Wall
-  -g
   -Wextra
   )
 
 add_definitions (
-  -DDISABLE_PLUGINS
   -DBOOST_LOG_DYN_LINK
+  )
+
+if (CMAKE_BUILD_TYPE STREQUAL "Debug")
+add_compile_options (
+  -g
+  )
+add_definitions (
   -DDEBUG
   )
+endif ()
+
+## Check if notmuch is compiled against the same GMime library
+include(CheckCXXSourceRuns)
+set (CMAKE_REQUIRED_INCLUDES ${GMIME_INCLUDE_DIRS})
+set (CMAKE_REQUIRED_FLAGS    ${GMIME_CFLAGS})
+set (CMAKE_REQUIRED_FLAGS    ${GMIME_LDFLAGS})
+CHECK_CXX_SOURCE_RUNS(
+  "
+  # include <notmuch.h>
+  # include <gmime/gmime.h>
+
+  # include <iostream>
+
+  /* test if we are linked against the same GMime version as notmuch */
+
+  # if (GMIME_MAJOR_VERSION < 3)
+  # define g_mime_init() g_mime_init(0)
+  # define internet_address_list_parse(f,str) internet_address_list_parse_string(str)
+  # define internet_address_list_to_string(ia,f,encode) internet_address_list_to_string(ia,encode)
+  # endif
+
+  int main () {
+    g_mime_init ();
+
+    const char * a = \"Test <hey@asdf.da>\";
+    InternetAddressList * ia = internet_address_list_parse (NULL, a);
+
+    const char * addrs = internet_address_list_to_string (ia, NULL, false);
+
+    std::cout << \"address: \" << addrs << std::endl;
+
+    return 0;
+  }
+  "
+
+  GMIME_MATCHES)
+
+if (NOT GMIME_MATCHES)
+  message (
+    FATAL_ERROR
+    "You must compile and link against the same GMime version (e.g. 2.6 or 3) with both notmuch and astroid."
+    )
+endif()
 
 if (ENABLE_PROFILING)
   message (STATUS "Enabling profiling.")
@@ -165,7 +241,7 @@ else()
     FATAL_ERROR
     "libsass must be installed: could not find header file. You can disable libsass with --disable-libsass, however, that requires a SCSS compiler like 'sassc' which can be specified with --scss-compiler=<path to compiler>."
     )
-endif()  
+endif()
 
 include_directories (
   src/
@@ -182,7 +258,7 @@ include_directories (
 
 add_executable(
   astroid
-  
+
   src/account_manager.cc
   src/astroid.cc
   src/chunk.cc
@@ -248,7 +324,7 @@ target_link_libraries (
   ${WEBKITGTK3_LDFLAGS}
   ${GTKMM3_LDFLAGS}
   ${GLIBMM2_LDFLAGS}
-  ${GMIME3_LDFLAGS}
+  ${GMIME_LDFLAGS}
   ${VTE2_LDFLAGS}
   ${SASS_LDFLAGS}
   ${Boost_LIBRARIES}
@@ -279,3 +355,90 @@ else(DISABLE_EMBEDDED_EDITOR)
       )
   endif(APPLE)
 endif(DISABLE_EMBEDDED_EDITOR)
+
+##
+# plugins
+#
+if(DISABLE_PLUGINS)
+  add_definitions ( -DDISABLE_PLUGINS )
+  message (STATUS "Disabling plugins.")
+else()
+  if(APPLE)
+    # with homebrew, libffi is keg-only, i.e. not symlinked into
+    # /usr/local; hence we have to tell pkg-config where to look for
+    # it
+    list ( APPEND CMAKE_PREFIX_PATH /usr/local/opt/libffi )
+  endif()
+  include (FindGObjectIntrospection)   # this performs a pkg_check_modules()
+  pkg_check_modules (PEAS libpeas-1.0>=1.0.0)
+  if(INTROSPECTION_FOUND AND PEAS_FOUND)
+    #
+    # GObject introspection
+    #
+    include (GObjectIntrospectionMacros)
+    set (GIR_NAME "${PLUGIN_NAMESPACE}-${PLUGIN_API_VERSION}.gir")
+    set (${GIR_NAME}_NAMESPACE      ${PLUGIN_NAMESPACE})
+    set (${GIR_NAME}_VERSION        ${PLUGIN_API_VERSION})
+    set (${GIR_NAME}_INCLUDEPKGS    GObject-2.0 GMime-3.0)
+    set (${GIR_NAME}_PROGRAM        ${CMAKE_CURRENT_BINARY_DIR}/gir_main)
+    set (${GIR_NAME}_FILES
+      src/plugin/astroid_activatable.c
+      src/plugin/thread_view_activatable.c
+      src/plugin/thread_index_activatable.c
+      src/plugin/astroid_activatable.h
+      src/plugin/thread_view_activatable.h
+      src/plugin/thread_index_activatable.h
+      src/plugin/gir_main.c
+      )
+    list ( APPEND INTROSPECTION_GIRS ${GIR_NAME} )
+    set (INTROSPECTION_SCANNER_ARGS --warn-all)
+    gir_add_introspections (INTROSPECTION_GIRS)   # magic happens here
+    #
+    # additional source files for astroid (plugin framework)
+    #
+    target_sources (
+      astroid
+      PRIVATE
+      src/plugin/astroid_activatable.c
+      src/plugin/manager.cc
+      src/plugin/thread_index_activatable.c
+      src/plugin/thread_view_activatable.c
+      )
+    #
+    # link astroid against libpeas
+    #
+    if(APPLE)
+      # with homebrew, libffi is keg-only, i.e. not symlinked into
+      # /usr/local; hence we have to tell the compiler where to look
+      # for header files
+      include_directories ( ${PEAS_INCLUDE_DIRS} )
+    endif(APPLE)
+    target_link_libraries (
+      astroid
+      ${PEAS_LDFLAGS}
+      )
+    #
+    # build gir_main executable for introspection
+    #
+    add_executable (
+      gir_main
+      ${${GIR_NAME}_FILES}
+      )
+    target_link_libraries (
+      gir_main
+      ${WEBKITGTK3_LDFLAGS}
+      ${GTKMM3_LDFLAGS}
+      ${PEAS_LDFLAGS}
+      ${INTROSPECTION_LIBS}
+      ${Gettext_LDFAGS}
+      )
+    #
+    # depenedecies for proper build order
+    #
+    add_dependencies ( gir-typelibs gir_main )
+    add_dependencies ( astroid  gir-typelibs )
+  else(INTROSPECTION_FOUND AND PEAS_FOUND)
+    add_definitions ( -DDISABLE_PLUGINS )
+    message (WARNING "Required packages not found; disabling plugins.")
+  endif(INTROSPECTION_FOUND AND PEAS_FOUND)
+endif(DISABLE_PLUGINS)

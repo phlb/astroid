@@ -245,8 +245,8 @@ include_directories (
   ${CMAKE_BINARY_DIR}/src	# needed to find the generated build_config.hh
   )
 
-add_executable(
-  astroid
+add_library(
+  astr
 
   src/account_manager.cc
   src/astroid.cc
@@ -256,7 +256,6 @@ add_executable(
   src/config.cc
   src/crypto.cc
   src/db.cc
-  src/main.cc
   src/main_window.cc
   src/message_thread.cc
   src/poll.cc
@@ -308,7 +307,7 @@ add_executable(
   )
 
 target_link_libraries (
-  astroid
+  astr
   ${NOTMUCH_LIB}
   ${WEBKITGTK3_LDFLAGS}
   ${GTKMM3_LDFLAGS}
@@ -319,6 +318,17 @@ target_link_libraries (
   ${Boost_LIBRARIES}
   ${CMAKE_THREAD_LIBS_INIT}
   ${Gettext_LDFLAGS}
+  )
+
+add_executable (
+  astroid
+
+  src/main.cc
+  )
+
+target_link_libraries (
+  astroid
+  astr
   )
 
 ##
@@ -337,7 +347,7 @@ else(DISABLE_EMBEDDED_EDITOR)
     add_definitions ( -DDISABLE_EMBEDDED )
   else(APPLE)
     target_sources (
-      astroid
+      astr
       PRIVATE
       src/modes/editor/editor.cc
       src/modes/editor/plugin.cc

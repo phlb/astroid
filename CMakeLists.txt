@@ -354,3 +354,8 @@ else(DISABLE_EMBEDDED_EDITOR)
       )
   endif(APPLE)
 endif(DISABLE_EMBEDDED_EDITOR)
+
+# Tests
+enable_testing()
+add_subdirectory (tests)
+
